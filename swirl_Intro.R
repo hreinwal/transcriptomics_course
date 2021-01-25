@@ -26,17 +26,18 @@ require("swirl")
 # The easiest way is to run: 
 # > install_course("Course Name Here")
 # Note that course names are case sensitive!!!
-# i.e. if you like to install the "Exploratory Data Analysis" course you simply run:
-install_course("Exploratory Data Analysis")
+# i.e. if you like to install the "R-Grundlagen" course you simply run:
+install_course("R-Grundlagen")
+
 # You can find a list of available courses you can install like this under:
 # https://swirlstats.com/scn/title.html
 # Here is an example how you can install various courses from swirlstats in a loop:
 
 # vector list of courses you wish to install 
-var <- c("Daten_einlesen_und_kennenlernen",
+var <- c("R-Grundlagen","A_(very)_short_introduction_to_R","Daten_einlesen_und_kennenlernen",
          "Einfuehrung_in_Datenaufbereitung_mit_tidyR",
-         "Daten_visualisieren_mit_ggplot2",
-         "Advanced R Programming"
+         "Daten_visualisieren_mit_ggplot2","R Programming",
+         "Advanced R Programming","Exploratory Data Analysis"
          )
 # run loop
 for(i in var) {

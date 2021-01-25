@@ -131,7 +131,7 @@ AEDownloadBulk(accession)
 # Search your environment for E-MTAB-9056" and "E-MTAB-9054" and look at their structures 
 # (hint: str() and View())
 
-# Q.4) What kind of objects are “E-MTAB-9056" and "E-MTAB-9054"? How many objects are stored in them?
+# Q.4) What kind of objects are "E-MTAB-9056" and "E-MTAB-9054"? How many objects are stored in them?
 
 # Q.5) Both E-MTAB objects should contain an IDF & SDRF file. What does IDF and SDRF stand for? What kind of information is stored in them?
 # ( Hint: Check the vignette: browseVignettes("ArrayExpress") )
