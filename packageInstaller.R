@@ -9,6 +9,7 @@
 ####################################################################
 
 ## Bioconductor source packages ##
+if (!requireNamespace("BiocManager", quietly = TRUE)){install.packages("BiocManager")}
 BioconPackage = c("DESeq2","IHW","ComplexHeatmap",
                   "apeglm","qvalue",
                   "EnhancedVolcano","pcaMethods",
