@@ -38,17 +38,23 @@ home = getwd()
 
 # In order to download data from ArrayExpress you need to know the accession number of the 
 # database entries which you would like to download. 
-# You can search the database online through your browser: 
-# https://www.ebi.ac.uk/arrayexpress/ 
+# You can search the database online through your browser: https://www.ebi.ac.uk/arrayexpress/
 # or directly in R with ?queryAE()
 
 # Now we are searching AE for danio rerio with the keyword "thyroid"
 sets = queryAE(keywords = "thyroid", species = "danio+rerio")
 
-# Q.1) Which ArrayExpress (AE) entries provide data that was published in a scientific journal?
+# Q.1) Which accession numbers are linked to an ArrayExpress (AE) entry who's data is published?
 # Q.2) Which substances were tested in those experiments?
 # Q.3) How would you search for entries linked to cancer research in zebrafish? How many entries can you find?
 #      Try to retrieve cancer related entries for humans. How many can you find there?
+# Solution -----------------------
+set1 = queryAE(keywords = "cancer", species = "danio+rerio")
+View(set1)
+nrow(set1) # ~ 70
+# There are so many entries for humans & cancer that my R crashed! 
+##############
+
 
 
 ### Import an ArrayExpress dataset into R ### ----------------------------
@@ -67,7 +73,7 @@ sets = queryAE(keywords = "thyroid", species = "danio+rerio")
 # the idf, sdrf,, and processed matrix files.
 
 AEDownload <- function(accession, type = "processed", out = getwd(), import = T) {
-  if(length(accession)>1){stop("length(accession) > 1. Please provide only a single accession number.")}
+  if(length(accession)>1){stop("length(accession) > 1. Please provide only a single accession number. ")}
   # create output dir
   dir.create(paste0(out,"/ArrayExpress"), showWarnings = F)
   setwd(paste0(out,"/ArrayExpress"))
@@ -111,19 +117,17 @@ AEDownloadBulk <- function(accession, type = "processed", out = getwd()) {
   setwd("../")
 }
 
-
-## Now we use the function defined above to download & import the following accessions into R
+# Now use the function defined above to import the following accessions into R
 accession = c("E-MTAB-9056","E-MTAB-9054")
 for(i in accession) {
   x <- AEDownload(i)
   assign(i,x)
 }
 rm(x,i)
-
 # If you only wish to download the files without loading them into R simply run: 
-AEDownloadBulk(accession)
+#AEDownloadBulk(accession)
 
-###################################
+######################################
 
 
 # Congrats! :) 
@@ -132,11 +136,23 @@ AEDownloadBulk(accession)
 # Search your environment for E-MTAB-9056" and "E-MTAB-9054" and look at their structures 
 # (hint: str() and View())
 
-# Q.4) What kind of objects are "E-MTAB-9056" and "E-MTAB-9054"? 
-# How many objects are stored in them? (hint: str() and View())
+# Q.4) What kind of objects are "E-MTAB-9056" and "E-MTAB-9054"? How many objects are stored in them?
 
 # Q.5) Both E-MTAB objects should contain an IDF & SDRF file. What does IDF and SDRF stand for? What kind of information is stored in them?
 # ( Hint: Check the vignette: browseVignettes("ArrayExpress") )
+# Solution -----------------
+# A MAGE-TAB document contains five different types of files:
+# - Investigation DescriptionFormat (IDF):
+#   The tab-delimited IDF file contains top level informationabout the experiment 
+#   including title,  description,  submitter contact details and protocols. 
+# - Array Design Format (ADF)
+# - Sample and Data Relationship Format (SDRF):
+#   The tab-delimited SDRF filecontains the sample annotation and the relationship 
+#   between arrays as provided by the submitter -> column info for count matrix
+# - raw data files
+# - processed data files
+# See browseVignettes("ArrayExpress") for details.
+###########
 
 
 # Let's extract the count matrices from the E-MTAB objects
@@ -146,6 +162,13 @@ mtx.T3 = `E-MTAB-9056`[["T3_CountMatrix.txt"]]
 
 # Q.6) Look at the CountMatrices. How many ENSEMBL Gene IDs and how many Samples (Sample IDs) are in there? 
 # Do both experiments have the same number of samples? 
+# Solution --------------
+nrow(mtx.T3)
+nrow(mtx.6PTU) # 32520
+# T3 has 12; 6PTU has 9 samples
+ncol(mtx.T3)
+ncol(mtx.6PTU)
+##########
 
 
 # Now let us have a look at the sample annotation files.
