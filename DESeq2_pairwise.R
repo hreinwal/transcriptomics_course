@@ -34,11 +34,11 @@ require(DESeq2) #installed
 require(IHW)    #installed
 require(apeglm) #installed
 require(qvalue)
-require(locfdr)
+#require(locfdr)
 require(RColorBrewer)
 require(ggplot2)
 require(ggpubr)
-require(hexbin)
+#require(hexbin)
 #####################
 
 
@@ -50,7 +50,7 @@ require(hexbin)
 
 ## Simple Import ## ----------------------------------------------------
 countMtx = read.table("../ArrayExpress/E-MTAB-9056/T3_CountMatrix.txt", row.names = 1)
-coldata = read.csv2("../ArrayExpress/E-MTAB-9056/")
+coldata = read.csv2("../ArrayExpress/E-MTAB-9056/T3_coldata.csv")
 # Q: You should have an object called countMtx in your R environment. Is the structure ok?
 
 ## A more generic (= flexible) way ## -----------------
@@ -227,6 +227,15 @@ dds  <- dds[keep,] #subsetting dds with selection of tmp
 rm(keep)
 # Q: how many genes are now left? (hint: nrow() counts())
 
+## This is actually a good time now to check the distribution of your read counts
+# Let's compute the row mean values for the filtered and unfiltered count mtx
+tmp = apply(countMtx, 1, mean)
+tmp1 = apply(counts(dds), 1, mean)
+# plotting
+par(mfrow = c(1,2))
+hist(log2(tmp+1), breaks = 20, main = "countMtx")
+hist(log2(tmp1 +1), breaks = 20, main = "filtered countMtx") #histogram of filtered counts
+
 ## Running DESeq2 & first data QC ## ----------------------------------------------------------------
 # Now we can finally run DESeq2 :) Yay!
 # use ?DESeq to inspect the function.
@@ -286,6 +295,24 @@ ntd <- assay(normTransform(dds)) # Extract (n+1)log2 transformed mean read count
 
 # The from the objects we created above the vst.bl, vst are the most suitable for PCA, t-SNE, 
 # dissimilarity Mtx, heatmap etc ....
+
+# How these different data transformation methods affect your data you can 
+# check with a simple boxplot:
+par(mfrow=c(1,3))
+boxplot(normMtx, notch = TRUE,
+        las = 3, #rotating sample labels 90
+        main = "Normalized read counts",
+        ylab = "norm. read counts")
+
+boxplot(ntd, notch = TRUE,
+        las = 3, #rotating sample labels 90
+        main = "log2 Transformation",
+        ylab = "log2 (norm. read counts + 1)")
+
+boxplot(vst, notch = TRUE,
+        las = 3, #rotating sample labels 90
+        main = "vst Transformation",
+        ylab = "vst (norm. read counts)")
 ###########################################################
 
 
@@ -599,9 +626,85 @@ for(i in names(res.ls)){
   message("Done!\n")
 }
 rm(n,i)
+###############################
 
 
-# Left to be plotted - MA, Vulcano, Venn, heatmap
+### Vulcano and MA plots ### --------------------------------
+# Here are two ready to use functions to MA & vulcano plot your DESeq2 result tables
+MAfun <- function(res, LFcut, topgenes = 10, title = "", Symbol = F, shrink = F){
+  if(missing(LFcut)){
+    LFcut = quantile(abs(res$log2FoldChange), na.rm=T, .9) # 90% quantile of the abs(log2FC)
+  }
+  ggpubr::ggmaplot(
+    res, 
+    fdr = p, fc = 2^(LFcut), size = 1.5,
+    top = topgenes,
+    select.top.method = 'fc', # fc or padj
+    palette = c("#B31B21", "#1465AC", "darkgray"),
+    main = paste(substance,title,"[ LFcut:",round(LFcut,2),"]"),
+    legend = "bottom",
+    genenames = if(Symbol == F){NULL}else{as.vector(res$external_gene_name)},
+    ylab = if(shrink == F){bquote(~Log[2]~ "fold change")}else{bquote("apeglm ("~Log[2]~"fc)")},
+    xlab = bquote(~Log[2]~ "mean expression"),
+    font.label = c("bold", 11), label.rectangle = F,
+    font.legend = "bold",
+    font.main = "bold",
+    ggtheme = ggplot2::theme_light()
+  )
+}
+VulcFun <- function(res, LFcut, topgenes = 10, title = "", Symbol = F, shrink = F){
+  if(missing(LFcut)){
+    LFcut = quantile(abs(res$log2FoldChange), na.rm=T, .9) # 90% quantile of the abs(log2FC)
+  }
+  
+  if(Symbol == T){
+    select <- res[order(res$padj),"external_gene_name"]}else{
+      select <- rownames(res[order(res$padj),])}
+  
+  #BiocManager::install("EnhancedVolcano")
+  EnhancedVolcano::EnhancedVolcano(
+    res, x = "log2FoldChange", y = "padj",
+    title = paste(substance,title,"[ LFcut:",round(LFcut,2),"]"),
+    subtitle = NULL,
+    lab = if(Symbol == F){rownames(res)}else{res$external_gene_name},
+    selectLab = if(topgenes == 0){select[NULL]}else{select[1:topgenes]}, # select topgenes based on padj value
+    #legendLabels = c('NS','Log2 FC','padj','padj & Log2 FC'),
+    xlab =  if(shrink == F){bquote(~Log[2]~ "fold change")}else{bquote("apeglm ("~Log[2]~"fc)")},
+    ylab = bquote(~-Log[10]~italic(padj)),
+    FCcutoff = LFcut,  #default 1
+    pCutoff = p,       #default 10e-6
+    labSize = 3.0,
+    pointSize = 1.5, #default 0.8
+    col = c("grey30", "grey30", "royalblue", "red2"),
+    shape = c(1, 0, 17, 19),   #default 19, http://sape.inf.usi.ch/quick-reference/ggplot2/shape for details
+    colAlpha = 0.4, #default 0.5
+    hline = c(0.01, 0.001),
+    hlineCol = c('grey40','grey55'),
+    hlineType = 'dotted',
+    hlineWidth = 0.6,
+    gridlines.major = T,
+    gridlines.minor = T,
+    drawConnectors = TRUE,
+  ) + theme_light() + theme(legend.position = "none")
+}
+
+# Now we can plot all results from our res.ls with a loop
+for(i in names(res.ls)) {
+  res = res.ls[[i]] # picking the i result table
+  print(MAfun(res, Symbol = T, title = i, topgenes = 6))
+  print(VulcFun(res, Symbol = T, title = i, topgenes = 6))
+}
+
+# And we can do the same for resLfs.ls
+for(i in names(resLfs.ls)) {
+  res = resLfs.ls[[i]] # picking the i result table
+  print(MAfun(res, Symbol = T, title = i, topgenes = 6))
+  print(VulcFun(res, Symbol = T, title = i, topgenes = 6))
+}
+# Q: How the results differ?
+
+# Left to be plotted Venn, heatmap
+
 #id.order <- c()
 #for(i in levels(coldata$Substance)){
 #  for(k in levels(coldata$Condition)){
