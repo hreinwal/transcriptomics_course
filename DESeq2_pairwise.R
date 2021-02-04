@@ -193,7 +193,7 @@ counts(dds) # prints the same object as countMtx! :)
 # Therefore it is a good idea to look at the quantile distribution to get an idea 
 # of a reasonable cutoff size.
 # computing rowSum for all rows: 
-tmp = apply(counts(dds), 1, sum)
+tmp = apply(countMtx, 1, sum)
 tmp1 = quantile(tmp, probs = seq(0, 1, 0.05)) # Here we look at the 5% quantile invervals from 0 to 100%
 tmp1
 # Q: In which quantile to we start to see counts when we look at the rowSums?
@@ -244,6 +244,7 @@ hist(log2(tmp1 +1), breaks = 20, main = "filtered countMtx") #histogram of filte
 
 message(paste0("\n Starting DESeq2 Analysis - Pairwise Wald's t-test and IHW \n padj < ",p,"\n Tested Substance: \t",substance,"\n"))
 dds <- DESeq(dds, test = "Wald")                   # Pairwise comparison
+
 
 # If you wish to run the ANOVA like LRT method you can run it like that:
 #dds <- DESeq(dds, test = "LRT", reduced = ~ Tank) # ANOVA-like approach
@@ -453,7 +454,7 @@ myPCA <- function(mtx, coldat, pcaM ="svd", top = 2000, title = "") {
     theme_bw() + theme(aspect.ratio = 1)
 }
 
-myPCA(vst, coldata)
+myPCA(vst, coldata, top = 2000)
 myPCA(vst.bl, coldata)
 # Q: Compare the two PCA plots. Which one is "better"? Why are they different?
 # Q: The "top" parameter refers to the topmost varying genes (largest variance among groups).
@@ -462,7 +463,8 @@ myPCA(vst.bl, coldata)
 
 
 ### Dissimilarity Matrix ### ----------------------------------------
-myDismtx <- function(mtx, coldat, method = "euclidean", top = 2000, title = "", ...) {
+myDismtx <- function(mtx, coldat, method = "euclidean", 
+                     top = 2000, title = "", ...) {
   if(nrow(mtx) < top){top <- nrow(mtx)}
   message(paste0("Plotting Sample Dist for Var.Top:\t\t",top))
   
@@ -502,12 +504,13 @@ myDismtx <- function(mtx, coldat, method = "euclidean", top = 2000, title = "", 
     col = colors,
     ...)
 }
+
 myDismtx(vst, coldata, title = "vst transformed norm counts")
 myDismtx(vst.bl, coldata, title = "vst.bl transformed norm counts")
 
 # Play around with the parameters a little bit and see how the clustering changes.
 myDismtx(vst.bl, coldata, title = "vst.bl transformed norm counts", top = 10000,
-         clustering_method = "single")
+         clustering_method = "average")
 # Q: What is the difference between average, complete and single linkage in hclustering?
 
 ############################
@@ -635,6 +638,8 @@ MAfun <- function(res, LFcut, topgenes = 10, title = "", Symbol = F, shrink = F)
   if(missing(LFcut)){
     LFcut = quantile(abs(res$log2FoldChange), na.rm=T, .9) # 90% quantile of the abs(log2FC)
   }
+  if(LFcut > 1){LFcut = 1} # in case the LFcut value is > 1, set LFcut to 1
+  
   ggpubr::ggmaplot(
     res, 
     fdr = p, fc = 2^(LFcut), size = 1.5,
@@ -652,16 +657,21 @@ MAfun <- function(res, LFcut, topgenes = 10, title = "", Symbol = F, shrink = F)
     ggtheme = ggplot2::theme_light()
   )
 }
-VulcFun <- function(res, LFcut, topgenes = 10, title = "", Symbol = F, shrink = F){
+VulcFun <- function(res, LFcut, topgenes = 10, title = "", Symbol = F, shrink = F,
+                    pcut = .05){
+  
   if(missing(LFcut)){
     LFcut = quantile(abs(res$log2FoldChange), na.rm=T, .9) # 90% quantile of the abs(log2FC)
   }
+  if(LFcut > 1){LFcut = 1}
   
   if(Symbol == T){
-    select <- res[order(res$padj),"external_gene_name"]}else{
-      select <- rownames(res[order(res$padj),])}
+    select <- res[order(res$padj),"external_gene_name"]
+    } else {
+      select <- rownames(res[order(res$padj),])
+      }
   
-  #BiocManager::install("EnhancedVolcano")
+  #if(shrink == F){bquote(~Log[2]~ "fold change")}else{bquote("apeglm ("~Log[2]~"fc)")}
   EnhancedVolcano::EnhancedVolcano(
     res, x = "log2FoldChange", y = "padj",
     title = paste(substance,title,"[ LFcut:",round(LFcut,2),"]"),
@@ -672,7 +682,7 @@ VulcFun <- function(res, LFcut, topgenes = 10, title = "", Symbol = F, shrink = 
     xlab =  if(shrink == F){bquote(~Log[2]~ "fold change")}else{bquote("apeglm ("~Log[2]~"fc)")},
     ylab = bquote(~-Log[10]~italic(padj)),
     FCcutoff = LFcut,  #default 1
-    pCutoff = p,       #default 10e-6
+    pCutoff = pcut,       #default 10e-6
     labSize = 3.0,
     pointSize = 1.5, #default 0.8
     col = c("grey30", "grey30", "royalblue", "red2"),
@@ -689,29 +699,281 @@ VulcFun <- function(res, LFcut, topgenes = 10, title = "", Symbol = F, shrink = 
 }
 
 # Now we can plot all results from our res.ls with a loop
+gg <- list() #empty list to store our objects to plot in with
 for(i in names(res.ls)) {
   res = res.ls[[i]] # picking the i result table
-  print(MAfun(res, Symbol = T, title = i, topgenes = 6))
-  print(VulcFun(res, Symbol = T, title = i, topgenes = 6))
+  gg[[paste0("MA.",i)]] <- MAfun(res, Symbol = T, title = i, topgenes = 6)
+  gg[[paste0("VO.",i)]] <- VulcFun(res, Symbol = T, title = i, topgenes = 6)
 }
+# Now you can plot each plot of the gg list object individually. i.e:
+gg$MA.lowexposure
+gg$MA.highexposure
+# Or you can plot all plots in one panel:
+ggpubr::ggarrange(plotlist = gg, ncol = 2, nrow = length(names(res.ls)))
 
-# And we can do the same for resLfs.ls
+# It is the best to export this nice graph into a png.
+# Remember pdf is better but in this case the file size would explode!
+png(paste0(substance,"_MA_Volcano.png"),units = "cm", bg = "white", res = 500,
+    width = 7.33333*3, height = 7.6*length(condition),pointsize = 1)
+ggpubr::ggarrange(plotlist = gg, ncol = 2, nrow = length(names(res.ls)))
+dev.off()
+# Now check your DESeq2 folder. The plot should be in there now.
+
+## Now we do the same for resLfs.ls results (shrunk Log2FC values)
+gg <- list()
 for(i in names(resLfs.ls)) {
+  # keep the LFcut threshold from non shrunk Log2FC values
+  LFcut = quantile(abs(res.ls[[i]][["log2FoldChange"]]), .9)
   res = resLfs.ls[[i]] # picking the i result table
-  print(MAfun(res, Symbol = T, title = i, topgenes = 6))
-  print(VulcFun(res, Symbol = T, title = i, topgenes = 6))
+  gg[[paste0("MA.",i)]] <- MAfun(res, Symbol = T, title = i, topgenes = 6, LFcut = LFcut, shrink = T)
+  gg[[paste0("VO.",i)]] <- VulcFun(res, Symbol = T, title = i, topgenes = 6, LFcut = LFcut, shrink = T)
 }
-# Q: How the results differ?
+# png export of plot
+png(paste0(substance,"_MA_Volcano_lfs.png"),units = "cm", bg = "white", res = 500,
+    width = 7.33333*3, height = 7.6*length(condition),pointsize = 1)
+ggpubr::ggarrange(plotlist = gg, ncol = 2, nrow = length(names(resLfs.ls)))
+dev.off()
 
-# Left to be plotted Venn, heatmap
+rm(gg,i,res,LFcut) # cleanup environment a little bit
 
-#id.order <- c()
-#for(i in levels(coldata$Substance)){
-#  for(k in levels(coldata$Condition)){
-#    id <- rownames(coldata[coldata$Condition %in% k & coldata$Substance %in% i,])
-#    id.order <- append(id.order,id)
-#  }
-#}
+# Q: Now compare the MA / Volcano plots between the "normal" and log2FC shrunk results.
+#    How do the results differ?
+############################
+
+
+
+##############     NEW LINES OF CODE FROM HERE     ##################
+
+# Based on what we have seen so far our data looks pretty good and reliable.
+# Let's check  the numbers of differential expressed genes (DEGs) in the high 
+# and low exposure condition again.
+
+# list to store DEGs in
+deg.ls <- lapply(res.ls, function(x){subset(x, padj <= p)})
+# Here we are telling R to subset the df for all values which have a padj < p. p was defined as 0.05 previously
+# Every gene in the tables stored in deg.ls has a padj <= 0.05
+
+# Now let's check the number of DEGs in the highexposure condition
+nrow(deg.ls$highexposure)
+# Wow! almost 5000 genes in here!!! 
+# Q: Does this number make sense to be visualized in a heatmap? 
+#    Or do you think it makes sense to visualize anything with ~ 5000 rows? 
+
+# So in our case we might be only interested in genes that are found differentially
+# regulated in both (HE & LE) conditions. 
+# Q: Why would we be more interested in the common set of genes? 
+
+# There is a really cool function in called ?intersect()
+# Q: What does intersect() do? What can be union() and setdiff() be used for?
+int <- intersect(row.names(deg.ls$lowexposure),
+                 row.names(deg.ls$highexposure))
+# Q: Check the int object we just created. What does it contain?
+# Q: what is the length(int)?
+
+# Attention spoiler alert! Yes, the int contains all the gene IDs that were found
+# dif.exp. in the common subset of high and low exposure condition. 
+# We cann use a venn diagram to nicely visualize that:
+
+# plot
+myVenn <- function(deg.ls, shape = "circle") {
+  col = topo.colors(length(names(deg.ls))) # color settings
+  ven.ls <- lapply(deg.ls, rownames) # here we select only the rownames / Gene IDs from the tables
+  venn <- eulerr::euler(ven.ls, shape = shape)
+  s <- round(venn$stress,3)
+  e <- round(venn$diagError,3)#
+  plot(venn,
+       fills = list(fill = col, alpha = .6), #labels = list(col = "black", font = 4),
+       legend = list(col = "black", font = 4),
+       main = paste0("DEGs [Stress:",s," ; Diag.Er:",e,"]"),
+       quantities = TRUE, shape = shape, lty = 1) #lty=0 for transparent
+}
+myVenn(deg.ls)
+# Great! Looking at the venn we see quite a big overlap between DEGs in HE and LE condition
+# But let's be honest, ~450 genes is still too much for a nice heatmap.
+# So let us filter our DEGs further. 
+
+# The next thing we can filter for might be biological effect size (log2FC values)
+# We can determine an arbitrary value, or we can compute one base on the LFcut distribution.
+# To inspect the distr. of log2FC values you can plot them with:
+par(mfrow=c(2,1))
+hist(res.ls$lowexposure$log2FoldChange, breaks = 150, xlim = c(-5,5))
+hist(res.ls$highexposure$log2FoldChange, breaks = 150, xlim = c(-5,5))
+# Q: What value are the log2FC values are centered around? 
+# Q: What kind of data distribution do we have here?
+# Q: How do the HE and LE log2FC values differ in their distribution?
+
+# I have experienced in the past that using the upper 90% quantile (= top 10%) of genes with the absolute largest log2FC values)
+# makes a great effect size cut off which scales with the "wideness" / variance of your log2FC distribution.
+# We already know how to compute the quantile values. To get the top 90% we run:
+LFcut.LE <- quantile(abs(res.ls$lowexposure$log2FoldChange), 0.9)
+LFcut.LE
+LFcut.HE <- quantile(abs(res.ls$highexposure$log2FoldChange), 0.9)
+# Q: why are we using the abs() expression here? 
+# The LFcut.HE is actually quite large (> 1). To avoid the removal of precious datapoints
+# we will manually set this value to 1 for now. But in fact there is NO textbook value. 
+LFcut.HE = 1
+
+# So to further filter our DEGs in deg.ls we simply run:
+degFCcut.ls <- lapply(deg.ls, function(x){
+  lfcut = quantile(abs(x$log2FoldChange), 0.9)
+  if(lfcut > 1){lfcut = 1} # in case lfcut greater 1, set to 1
+  subset(x, abs(log2FoldChange) >= lfcut)
+})
+# Q: Inspect the list object degFCcut.ls. How many DEGs are left now in each condition?
+
+# Let's plot the common set of DEGs after the LFcut filtering:
+myVenn(degFCcut.ls)
+# This looks pretty good doesn't it? And in fact a number of 54 DEGs in the common set
+# is much more reasonable to plot in the final heatmap.
+
+# Extract these 54 gene IDs with:
+int <- intersect(row.names(degFCcut.ls$lowexposure),
+                 row.names(degFCcut.ls$highexposure))
+int
+
+# To do just one last checkup, let us have a look at the mean expression values of these 54 genes
+tmp = apply(normMtx[int,],1,mean)
+par(mfrow=c(1,1))
+barplot(sort(tmp, decreasing = T), ylim = c(0,3000), main = "Mean expression of DEG selection")
+abline(h=200, lwd=1.5, lty=2, col = "firebrick")
+abline(h=100, lwd=1.5, lty=2, col = "blue")
+# The two dashed lines indicate an arbitrary threshold we could set at i.e. 100 (blue)
+# or 200 (red). So let us subset our final DEG selection one last time for genes that have
+# a mean expression value of at least 100.
+common <- names(tmp) # the 54 DEGs of the common set
+
+select <- names(tmp[which(tmp > 100)]) # Final selection with mean expression cut off
+select
+# Yuhuuuuu! Here we have our final selection of 47 genes that:
+# - were found dif.expressed in HE and LE condition
+# - have a log2FC value greater than the respective cut off
+# - a mean expression > 100
+
+# Now finally! Let's make a heatmap ...
+
+
+### Plotting a heatmap ### -----------------------------------------------------------
+# Here we will use the pheatmap function from the pheatmap package to plot the heatmap.
+# There are many other tools out there. Feel free to explore :) 
+?pheatmap
+
+pheatmap(countMtx[select,])
+# Well this looks sort of like a heatmap but probably not exactly what you expected.
+# Q: What do the colors correspond here? 
+
+# Plotting the vst transformed mean counts 
+pheatmap(vst[select,])
+# Q: This looks nicer doesn't it? But can you tell from looking at the heatmap which genes are
+# up and down regulated? What do the colors correspond to?
+# You see, only having fancy colors doesn't make a plot informative. 
+
+# Let us try to scale the rows.
+# Basically what we are doing now is to compute the mean of each row then center (substract) every value
+# of that row around it and then divide by the row's SD. This approach is called z-score transformation.
+# Fancy name - simple math behind it ;).
+pheatmap(vst[select,], scale = "row")
+# Cool we are getting there , right?!
+# Q: Can you tell now which genes are up and down regulated with respect to the control?
+
+# Well, if you ask me this is not good enough yet. What about a heatmap where the values are
+# centered not around the row's mean but around the control groups mean. 
+# That way, the values would be ~ 0 and become negative when the expression is lower or positive
+# when the expression is higher compared to the control. 
+# Here is a function that will help you do that:
+centCtrMean <- function(mtx, coldata){
+  coldat <- coldata[colnames(mtx),]
+  id <- rownames(coldat[grep("[Cc]ontrol", coldat$Condition),])
+  ctrM <- apply(mtx[,id], 1, FUN = mean) #calcs the mean of control
+  Sd <- apply(mtx, 1, FUN = sd) # calcs Sd of each row / gene
+  (mtx - ctrM)/Sd # centers for the mean of control and scales for overall Sd of the row / gene
+}
+hMtx <- centCtrMean(vst[select,], coldata) #mean centered mtx for heatmap
+
+# Now let's plot that:
+pheatmap(hMtx)
+
+# Q: Looking at the heatmap can you tell now which genes are up and down regulated? 
+
+# Btw if you want no clustering of the columns you can run
+pheatmap(hMtx, cluster_cols = F)
+# to rearange the order of your columns try:
+id.order <- c()
+for(i in levels(as.factor(coldata$Substance))){
+  for(k in levels(as.factor(coldata$Condition))){
+    id <- rownames(coldata[coldata$Condition %in% k & coldata$Substance %in% i,])
+    id.order <- append(id.order,id)
+  }
+}
+hMtx <- hMtx[,id.order]
+pheatmap(hMtx, cluster_cols = F, gaps_col = c(3,6),
+         annotation_col = coldata[,c('Tank','Condition')])
+# I think this is already a quite nice heatmap. All it needs is a little bit more fine tuning
+# of the colors and some propper sample annotation. 
+
+# Luckily I made a function for you ;):
+myheat2 <- function(df, coldata, colclust = F, rowclust = T, 
+                    title = "", distM = "euclidean", Symbol = F){
+  # Set anno colors
+  col.Cond = colorRampPalette(brewer.pal(n=8, name="YlOrRd"))(length(levels(coldata$Condition)))
+  col.Cond[1] <- "#56B4E9" #Defines color for control
+  col.Tank = colorRampPalette(c("gray95","gray50"))(length(levels(coldata$Tank)))
+  
+  ann_colors = list(Tank = setNames(col.Tank, levels(coldata$Tank)),
+                    Condition = setNames(col.Cond, levels(coldata$Condition)))
+  # column gaps
+  colGaps <- c()
+  Conditions <- levels(coldata$Condition)
+  for(k in Conditions[1:(length(Conditions)-1)]){
+    x <- which(coldata[id.order,'Condition'] %in% k)
+    x <- tail(x,1)
+    colGaps <- append(colGaps,x)
+  }
+  # cluster fun
+  callback <- function(hc, mat){
+    sv = svd(t(mat))$v[,1]
+    dend = reorder(as.dendrogram(hc), wts = sv)
+    as.hclust(dend)
+  }
+  
+  # set anno colors & breaks
+  x <- 10 #length of colors above and below zero values
+  x <- 2*x + 1
+  col <- colorRampPalette(c("mediumblue","white","red2"))(x) #defines color palette in heatmap
+  s <- sd(df[,rownames(coldata[which(coldata$Condition %in% 'control'),])]) # sets sd around 0 values from control to white
+  m <- mean(df[,rownames(coldata[which(coldata$Condition %in% 'control'),])])
+  myBreaks <- c(seq(min(df), m-s, length.out=ceiling(x/2)), 
+                seq(m+s, max(df), length.out=floor(x/2)))
+  # plot
+  if(Symbol == T){
+    tmp = merge(df, res.ls[[1]], by = 0)[,-1]
+    row.names(tmp) <- tmp$external_gene_name
+    df1 <- tmp[,1:ncol(df)]
+  }else{df1 <- df}
+  
+  pheatmap::pheatmap(
+    df1, angle_col = "90", gaps_col = if(colclust == T){NULL}else{colGaps},
+    clustering_callback = callback, treeheight_col = 30, #default 50
+    cluster_rows= rowclust, cluster_cols= colclust,
+    clustering_distance_rows = distM, clustering_distance_cols = distM, 
+    clustering_method = "average",
+    main = if(colclust == T){
+      paste(title,'[mean cent]',distM, nrow(df1),"Genes")} else {
+        paste(title,'[mean cent]',nrow(df1),"Genes")},
+    show_rownames= T, show_colnames = T, breaks = myBreaks,
+    annotation_col = coldata[,c('Tank','Condition')], annotation_colors = ann_colors, color = col
+  )
+}
+
+# Here are your final heatmaps! 
+myheat2(hMtx, coldata, Symbol = T)
+myheat2(hMtx, coldata, Symbol = T, colclust = T)
+
+# You can export them through:
+pdf(file = "Heatmaps_commonDEGs.pdf", width = 13, height = 19, 
+    onefile = T, bg = "transparent")
+myheat2(hMtx, coldata, Symbol = T)
+myheat2(hMtx, coldata, Symbol = T, colclust = T)
+dev.off()
 
 
 ## Session Information & save Rdata  ## ------------
