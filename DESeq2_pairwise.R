@@ -30,15 +30,16 @@
 ##########
 
 ### LOAD PACKAGES ### -------------------------------------------------
+require(RColorBrewer)
+require(ggplot2)
+require(ggpubr)
+require(pheatmap)
+#require(hexbin)
 require(DESeq2) #installed
 require(IHW)    #installed
 require(apeglm) #installed
 require(qvalue)
 #require(locfdr)
-require(RColorBrewer)
-require(ggplot2)
-require(ggpubr)
-#require(hexbin)
 #####################
 
 
@@ -224,17 +225,18 @@ par(mfrow=c(1,1))
 # selecting gene names / rownames from count matrix for which rowSum is > ncol +2
 keep <- rowSums(counts(dds)) >= ncol(counts(dds))+2
 dds  <- dds[keep,] #subsetting dds with selection of tmp
-rm(keep)
 # Q: how many genes are now left? (hint: nrow() counts())
 
 ## This is actually a good time now to check the distribution of your read counts
 # Let's compute the row mean values for the filtered and unfiltered count mtx
 tmp = apply(countMtx, 1, mean)
-tmp1 = apply(counts(dds), 1, mean)
+tmp1 = apply(countMtx[keep,], 1, mean)
+
 # plotting
 par(mfrow = c(1,2))
-hist(log2(tmp+1), breaks = 20, main = "countMtx")
-hist(log2(tmp1 +1), breaks = 20, main = "filtered countMtx") #histogram of filtered counts
+hist(log2(tmp+1), breaks = 20, main = "countMtx", ylim = c(0,5000), xlab = "log2(Row mean count +1)")
+hist(log2(tmp1 +1), breaks = 20, main = "filtered countMtx",ylim = c(0,5000), 
+     xlab ="log2(Row mean count +1)") #histogram of filtered counts
 
 ## Running DESeq2 & first data QC ## ----------------------------------------------------------------
 # Now we can finally run DESeq2 :) Yay!
@@ -841,7 +843,6 @@ abline(h=100, lwd=1.5, lty=2, col = "blue")
 # or 200 (red). So let us subset our final DEG selection one last time for genes that have
 # a mean expression value of at least 100.
 common <- names(tmp) # the 54 DEGs of the common set
-
 select <- names(tmp[which(tmp > 100)]) # Final selection with mean expression cut off
 select
 # Yuhuuuuu! Here we have our final selection of 47 genes that:
@@ -862,7 +863,7 @@ pheatmap(countMtx[select,])
 # Q: What do the colors correspond here? 
 
 # Plotting the vst transformed mean counts 
-pheatmap(vst[select,])
+pheatmap(vst[select,], cluster_cols = F)
 # Q: This looks nicer doesn't it? But can you tell from looking at the heatmap which genes are
 # up and down regulated? What do the colors correspond to?
 # You see, only having fancy colors doesn't make a plot informative. 
@@ -887,11 +888,11 @@ centCtrMean <- function(mtx, coldata){
   Sd <- apply(mtx, 1, FUN = sd) # calcs Sd of each row / gene
   (mtx - ctrM)/Sd # centers for the mean of control and scales for overall Sd of the row / gene
 }
+
 hMtx <- centCtrMean(vst[select,], coldata) #mean centered mtx for heatmap
 
 # Now let's plot that:
 pheatmap(hMtx)
-
 # Q: Looking at the heatmap can you tell now which genes are up and down regulated? 
 
 # Btw if you want no clustering of the columns you can run
@@ -911,10 +912,10 @@ pheatmap(hMtx, cluster_cols = F, gaps_col = c(3,6),
 # of the colors and some propper sample annotation. 
 
 # Luckily I made a function for you ;):
-myheat2 <- function(df, coldata, colclust = F, rowclust = T, 
-                    title = "", distM = "euclidean", Symbol = F){
+myheat2 <- function(df, coldata, colclust = F, rowclust = T, Symbol = F,
+                    title = "", distM = "euclidean", clustM = "average"){
   # Set anno colors
-  col.Cond = colorRampPalette(brewer.pal(n=8, name="YlOrRd"))(length(levels(coldata$Condition)))
+  col.Cond = colorRampPalette(RColorBrewer::brewer.pal(n=8, name="YlOrRd"))(length(levels(coldata$Condition)))
   col.Cond[1] <- "#56B4E9" #Defines color for control
   col.Tank = colorRampPalette(c("gray95","gray50"))(length(levels(coldata$Tank)))
   
@@ -955,10 +956,8 @@ myheat2 <- function(df, coldata, colclust = F, rowclust = T,
     clustering_callback = callback, treeheight_col = 30, #default 50
     cluster_rows= rowclust, cluster_cols= colclust,
     clustering_distance_rows = distM, clustering_distance_cols = distM, 
-    clustering_method = "average",
-    main = if(colclust == T){
-      paste(title,'[mean cent]',distM, nrow(df1),"Genes")} else {
-        paste(title,'[mean cent]',nrow(df1),"Genes")},
+    clustering_method = clustM,
+    main = paste(title,distM, clustM,nrow(df1),"Genes"),
     show_rownames= T, show_colnames = T, breaks = myBreaks,
     annotation_col = coldata[,c('Tank','Condition')], annotation_colors = ann_colors, color = col
   )
@@ -966,7 +965,8 @@ myheat2 <- function(df, coldata, colclust = F, rowclust = T,
 
 # Here are your final heatmaps! 
 myheat2(hMtx, coldata, Symbol = T)
-myheat2(hMtx, coldata, Symbol = T, colclust = T)
+myheat2(hMtx, coldata, Symbol = T, rowclust = F)
+myheat2(hMtx, coldata, Symbol = T, colclust = T, clustM = "average")
 
 # You can export them through:
 pdf(file = "Heatmaps_commonDEGs.pdf", width = 13, height = 19, 
@@ -983,5 +983,4 @@ print(devtools::session_info())
 sink()
 
 save.image(paste0(home,"/DESeq2_pairwise.RData"))
-
 ###    END OF SCRIPT   ####
