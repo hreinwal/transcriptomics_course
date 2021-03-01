@@ -564,7 +564,7 @@ for(i in tmp) {
   message("Done!\n")
 }
 
-# You can simply access the object in the list via:
+# You can simply access the object in the list via the $ extension:
 res.ls$lowexposure
 # with summary() you can get some quick stats
 summary(res.ls$lowexposure)
@@ -1004,7 +1004,7 @@ myheat2 <- function(df, coldata, colclust = F, rowclust = T, Symbol = F,
     if(any(duplicated(tmp$external_gene_name))) {
       tmp = dplyr::arrange(tmp, desc(baseMean))
       dup = which(duplicated(tmp$external_gene_name))
-      dup = tmp$external_gene_name[dup]
+      dup = unique(tmp$external_gene_name[dup])
       tmp = tmp[!duplicated(tmp$external_gene_name), ]
       warning(paste("\nGene symbol",dup,"was duplicated. Lower expressed symbol was removed!"))
       row.names(tmp) <- tmp$external_gene_name
