@@ -80,7 +80,7 @@ stopifnot(length(list.files(pathToData)) > 1)
 # Stop if list of files in pathToData is not greater 1 (must have a coldata AND countmatrix file)
 
 # import count matrix
-tmp = list.files(pathToData, full.names = T, pattern = "[Cc]ount[Mm]atrix")
+tmp = list.files(pathToData, full.names = T, pattern = "[Cc]ount[Mm]atrix.txt")
 countMtx = read.table(file = tmp, row.names = 1, header = T)
 if(ncol(countMtx) < 1) {
   countMtx = read.delim2(file = tmp, row.names = 1, header = T)
@@ -221,6 +221,31 @@ par(mfrow=c(1,1))
 # For now let us use a minimum rowSum threshold of NumberOfSamples + 2
 # Q: What is our rowSum threshold then? 
 
+# How the filtering affects the number of genes analyzed with DESeq2 
+# can be visualized via:
+cutOffPlot <- function(countMtx, cut) {
+  n = ncol(countMtx)
+  if(missing(cut)){cut = n}
+  if(n < 6) {stop("Number of count matrix columns < 6")}
+  X = seq(n-6,n+50,1) 
+  X[X == 0] <- 1
+  X = sort(union(X, c(1:5)))
+  
+  rNbr = c() # empty vector to store Nbr of genes per cutoff in
+  for(x in X) {
+    tmp  = nrow(countMtx[which(rowSums(countMtx) >= x), ])
+    rNbr = append(rNbr, tmp)
+  }
+  df <- data.frame(x = X, y = rNbr)
+  plot(df, xlab = "Row sum cut off", ylab = "Nbr of genes",
+       main = "Genes in count matrix")
+  abline(v=cut, lwd=1.5, lty=2, col = "firebrick")
+  #abline(h=df[cut,2], lwd=1.5, lty=2, col = "blue")
+  text(x = cut, y = df[cut,2], pos = 4, offset = 1.5,
+       labels = paste("Cutoff:",cut,"=",df[cut,2],"genes"))
+}
+cutOffPlot(countMtx)
+
 # Filter count matrix - removing genes with none or low counts
 # selecting gene names / rownames from count matrix for which rowSum is > ncol +2
 keep <- rowSums(counts(dds)) >= ncol(counts(dds))+2
@@ -233,10 +258,14 @@ tmp = apply(countMtx, 1, mean)
 tmp1 = apply(countMtx[keep,], 1, mean)
 
 # plotting
-par(mfrow = c(1,2))
-hist(log2(tmp+1), breaks = 20, main = "countMtx", ylim = c(0,5000), xlab = "log2(Row mean count +1)")
-hist(log2(tmp1 +1), breaks = 20, main = "filtered countMtx",ylim = c(0,5000), 
+par(mfrow = c(1,3))
+hist(log2(tmp+1), breaks = 30, main = "countMtx", 
+     ylim = c(0,2500), xlim = c(0,20),
+     xlab = "log2(Row mean count +1)")
+hist(log2(tmp1 +1), breaks = 30, main = "filtered countMtx",
+     ylim = c(0,2500), xlim = c(0,20),
      xlab ="log2(Row mean count +1)") #histogram of filtered counts
+cutOffPlot(countMtx)
 
 ## Running DESeq2 & first data QC ## ----------------------------------------------------------------
 # Now we can finally run DESeq2 :) Yay!
@@ -553,7 +582,7 @@ hist(res.ls$highexposure[["pvalue"]], main= "pval distr. - High treatment",
      breaks = 100)
 
 # Or you can run it in a loop: 
-par(mfrow=c(1,2))
+par(mfrow=c(1,length(res.ls)))
 for(i in names(res.ls)) {
   hist(res.ls[[i]][["pvalue"]], main = paste("pval distr.",i),
        col = "gray50", border = "gray50", ylab = "Frequency", xlab = "pvalue",
@@ -597,7 +626,7 @@ require(biomaRt)
 # your DESeq2 result tables.
 
 rerio  <- useMart("ENSEMBL_MART_ENSEMBL", dataset = 'drerio_gene_ensembl', host = "https://www.ensembl.org")
-id     <- rownames(res.ls$lowexposure)
+id     <- rownames(res.ls[[1]])
 idType <- "ensembl_gene_id"
 attr  <- c("ensembl_gene_id","external_gene_name","description","gene_biotype"#,"entrezgene_id"
            )
@@ -708,13 +737,16 @@ for(i in names(res.ls)) {
   gg[[paste0("VO.",i)]] <- VulcFun(res, Symbol = T, title = i, topgenes = 6)
 }
 # Now you can plot each plot of the gg list object individually. i.e:
-gg$MA.lowexposure
-gg$MA.highexposure
+names(gg)
+gg[[1]]
+gg[[2]]
+
 # Or you can plot all plots in one panel:
-ggpubr::ggarrange(plotlist = gg, ncol = 2, nrow = length(names(res.ls)))
+ggpubr::ggarrange(plotlist = gg, ncol = 2, nrow = length(res.ls))
 
 # It is the best to export this nice graph into a png.
-# Remember pdf is better but in this case the file size would explode!
+# Remember pdf is better but in this case the multiple layers in the pdf might create 
+# some problems for so many data points!
 png(paste0(substance,"_MA_Volcano.png"),units = "cm", bg = "white", res = 500,
     width = 7.33333*3, height = 7.6*length(condition),pointsize = 1)
 ggpubr::ggarrange(plotlist = gg, ncol = 2, nrow = length(names(res.ls)))
@@ -746,6 +778,7 @@ rm(gg,i,res,LFcut) # cleanup environment a little bit
 
 ##############     NEW LINES OF CODE FROM HERE     ##################
 
+### Venn plot ### --------------------------------------------------------------
 # Based on what we have seen so far our data looks pretty good and reliable.
 # Let's check  the numbers of differential expressed genes (DEGs) in the high 
 # and low exposure condition again.
@@ -756,7 +789,7 @@ deg.ls <- lapply(res.ls, function(x){subset(x, padj <= p)})
 # Every gene in the tables stored in deg.ls has a padj <= 0.05
 
 # Now let's check the number of DEGs in the highexposure condition
-nrow(deg.ls$highexposure)
+nrow(deg.ls[[grep("[Hh]igh",names(deg.ls))]])
 # Wow! almost 5000 genes in here!!! 
 # Q: Does this number make sense to be visualized in a heatmap? 
 #    Or do you think it makes sense to visualize anything with ~ 5000 rows? 
@@ -777,7 +810,7 @@ int <- intersect(row.names(deg.ls$lowexposure),
 # We cann use a venn diagram to nicely visualize that:
 
 # plot
-myVenn <- function(deg.ls, shape = "circle") {
+myVenn <- function(deg.ls, shape = "circle", title = "") {
   col = topo.colors(length(names(deg.ls))) # color settings
   ven.ls <- lapply(deg.ls, rownames) # here we select only the rownames / Gene IDs from the tables
   venn <- eulerr::euler(ven.ls, shape = shape)
@@ -786,10 +819,10 @@ myVenn <- function(deg.ls, shape = "circle") {
   plot(venn,
        fills = list(fill = col, alpha = .6), #labels = list(col = "black", font = 4),
        legend = list(col = "black", font = 4),
-       main = paste0("DEGs [Stress:",s," ; Diag.Er:",e,"]"),
+       main = paste0(title," - DEGs [Stress:",s," ; Diag.Er:",e,"]"),
        quantities = TRUE, shape = shape, lty = 1) #lty=0 for transparent
 }
-myVenn(deg.ls)
+myVenn(deg.ls, title = substance)
 # Great! Looking at the venn we see quite a big overlap between DEGs in HE and LE condition
 # But let's be honest, ~450 genes is still too much for a nice heatmap.
 # So let us filter our DEGs further. 
@@ -815,42 +848,51 @@ LFcut.HE <- quantile(abs(res.ls$highexposure$log2FoldChange), 0.9)
 # we will manually set this value to 1 for now. But in fact there is NO textbook value. 
 LFcut.HE = 1
 
-# So to further filter our DEGs in deg.ls we simply run:
-degFCcut.ls <- lapply(deg.ls, function(x){
-  lfcut = quantile(abs(x$log2FoldChange), 0.9)
+# To filter out DEGs above or below the computed LFcut threshold run:
+degFCcut.ls <- lapply(res.ls, function(X){
+  lfcut = quantile(abs(X$log2FoldChange), 0.9)
   if(lfcut > 1){lfcut = 1} # in case lfcut greater 1, set to 1
+  message(paste("Log2FC cut off:\t\t",round(lfcut,2)))
+  x = subset(X, padj <= p)
   subset(x, abs(log2FoldChange) >= lfcut)
 })
 # Q: Inspect the list object degFCcut.ls. How many DEGs are left now in each condition?
 
+
 # Let's plot the common set of DEGs after the LFcut filtering:
-myVenn(degFCcut.ls)
-# This looks pretty good doesn't it? And in fact a number of 54 DEGs in the common set
+myVenn(degFCcut.ls, title = "T3 - LFcut")
+# This looks pretty good doesn't it? And in fact a number of 150 DEGs in the common set
 # is much more reasonable to plot in the final heatmap.
 
-# Extract these 54 gene IDs with:
-int <- intersect(row.names(degFCcut.ls$lowexposure),
-                 row.names(degFCcut.ls$highexposure))
-int
+# Extract these 150 gene IDs with:
+tmp = lapply(degFCcut.ls, row.names)
+names(tmp)
+str(tmp) # Now we have a nice tidy list object with all ENSEMBL IDs of the DEGs for each condition
 
-# To do just one last checkup, let us have a look at the mean expression values of these 54 genes
+# To get the common overlap we simply run:
+int <- Reduce(intersect, tmp)
+
+# To do just one last checkup, let us have a look at the mean expression values of these 150 genes
 tmp = apply(normMtx[int,],1,mean)
 par(mfrow=c(1,1))
 barplot(sort(tmp, decreasing = T), ylim = c(0,3000), main = "Mean expression of DEG selection")
-abline(h=200, lwd=1.5, lty=2, col = "firebrick")
-abline(h=100, lwd=1.5, lty=2, col = "blue")
-# The two dashed lines indicate an arbitrary threshold we could set at i.e. 100 (blue)
-# or 200 (red). So let us subset our final DEG selection one last time for genes that have
+abline(h=250, lwd=1.5, lty=2, col = "firebrick")
+abline(h=500, lwd=1.5, lty=2, col = "blue")
+# The two dashed lines indicate an arbitrary threshold we could set at i.e. 500 (blue)
+# or 250 (red). So let us subset our final DEG selection one last time for genes that have
 # a mean expression value of at least 100.
-common <- names(tmp) # the 54 DEGs of the common set
-select <- names(tmp[which(tmp > 100)]) # Final selection with mean expression cut off
+common <- names(tmp) # the 150 DEGs of the common set
+
+minExp <- 200 # minimum baseMean gene count; You can play around with this parameter.
+select <- names(tmp[which(tmp > minExp)]) # Final selection with mean expression cut off
 select
-# Yuhuuuuu! Here we have our final selection of 47 genes that:
+# Yuhuuuuu! Here we have our final selection of 78 genes that:
 # - were found dif.expressed in HE and LE condition
 # - have a log2FC value greater than the respective cut off
-# - a mean expression > 100
+# - a mean expression > 500
 
 # Now finally! Let's make a heatmap ...
+#################
 
 
 ### Plotting a heatmap ### -----------------------------------------------------------
@@ -858,12 +900,22 @@ select
 # There are many other tools out there. Feel free to explore :) 
 ?pheatmap
 
+# very simple heatmap - only counts
 pheatmap(countMtx[select,])
+
+# now with annotation and gene symbol 
+anno = subset(res.ls[[1]][select,], select=external_gene_name)
+tmp = countMtx
+tmp = merge(tmp,anno, by=0)
+row.names(tmp) <- tmp$external_gene_name
+tmp = subset(tmp, select = grep("R[1-9]",colnames(tmp)))
+pheatmap(tmp, annotation_col = coldata[,c("Condition","Tank")])
 # Well this looks sort of like a heatmap but probably not exactly what you expected.
 # Q: What do the colors correspond here? 
 
 # Plotting the vst transformed mean counts 
-pheatmap(vst[select,], cluster_cols = F)
+pheatmap(vst[select,], cluster_cols = T,
+         annotation_col = coldata[,c("Condition","Tank")])
 # Q: This looks nicer doesn't it? But can you tell from looking at the heatmap which genes are
 # up and down regulated? What do the colors correspond to?
 # You see, only having fancy colors doesn't make a plot informative. 
@@ -872,7 +924,8 @@ pheatmap(vst[select,], cluster_cols = F)
 # Basically what we are doing now is to compute the mean of each row then center (substract) every value
 # of that row around it and then divide by the row's SD. This approach is called z-score transformation.
 # Fancy name - simple math behind it ;).
-pheatmap(vst[select,], scale = "row")
+pheatmap(vst[select,], scale = "row",
+         annotation_col = coldata[,c("Condition","Tank")])
 # Cool we are getting there , right?!
 # Q: Can you tell now which genes are up and down regulated with respect to the control?
 
@@ -889,8 +942,8 @@ centCtrMean <- function(mtx, coldata){
   (mtx - ctrM)/Sd # centers for the mean of control and scales for overall Sd of the row / gene
 }
 
-hMtx <- centCtrMean(vst[select,], coldata) #mean centered mtx for heatmap
-
+hMtx <- centCtrMean(vst[select,], coldata) #mean centered mtx with base mean cutoff for heatmap
+hMtx.all <- centCtrMean(vst[common,], coldata) #mean centered mtx for heatmap without baseMean cutoff
 # Now let's plot that:
 pheatmap(hMtx)
 # Q: Looking at the heatmap can you tell now which genes are up and down regulated? 
@@ -906,7 +959,7 @@ for(i in levels(as.factor(coldata$Substance))){
   }
 }
 hMtx <- hMtx[,id.order]
-pheatmap(hMtx, cluster_cols = F, gaps_col = c(3,6),
+pheatmap(hMtx, cluster_cols = F, gaps_col = seq(1,ncol(hMtx)-3, by=3)+2,
          annotation_col = coldata[,c('Tank','Condition')])
 # I think this is already a quite nice heatmap. All it needs is a little bit more fine tuning
 # of the colors and some propper sample annotation. 
@@ -918,7 +971,6 @@ myheat2 <- function(df, coldata, colclust = F, rowclust = T, Symbol = F,
   col.Cond = colorRampPalette(RColorBrewer::brewer.pal(n=8, name="YlOrRd"))(length(levels(coldata$Condition)))
   col.Cond[1] <- "#56B4E9" #Defines color for control
   col.Tank = colorRampPalette(c("gray95","gray50"))(length(levels(coldata$Tank)))
-  
   ann_colors = list(Tank = setNames(col.Tank, levels(coldata$Tank)),
                     Condition = setNames(col.Cond, levels(coldata$Condition)))
   # column gaps
@@ -940,16 +992,25 @@ myheat2 <- function(df, coldata, colclust = F, rowclust = T, Symbol = F,
   x <- 10 #length of colors above and below zero values
   x <- 2*x + 1
   col <- colorRampPalette(c("mediumblue","white","red2"))(x) #defines color palette in heatmap
-  s <- sd(df[,rownames(coldata[which(coldata$Condition %in% 'control'),])]) # sets sd around 0 values from control to white
-  m <- mean(df[,rownames(coldata[which(coldata$Condition %in% 'control'),])])
+  s <- sd(df[,rownames(coldata[which(coldata$Condition %in% condition[1]),])]) # sets sd around 0 values from control to white
+  m <- mean(df[,rownames(coldata[which(coldata$Condition %in% condition[1]),])])
   myBreaks <- c(seq(min(df), m-s, length.out=ceiling(x/2)), 
                 seq(m+s, max(df), length.out=floor(x/2)))
   # plot
-  if(Symbol == T){
+  if(Symbol == T) {
     tmp = merge(df, res.ls[[1]], by = 0)[,-1]
-    row.names(tmp) <- tmp$external_gene_name
+    # if any external gene symbol is duplicated, order input by baseMean and
+    # remove the lower expressed duplicate.
+    if(any(duplicated(tmp$external_gene_name))) {
+      tmp = dplyr::arrange(tmp, desc(baseMean))
+      dup = which(duplicated(tmp$external_gene_name))
+      dup = tmp$external_gene_name[dup]
+      tmp = tmp[!duplicated(tmp$external_gene_name), ]
+      warning(paste("\nGene symbol",dup,"was duplicated. Lower expressed symbol was removed!"))
+      row.names(tmp) <- tmp$external_gene_name
+      } else { row.names(tmp) <- tmp$external_gene_name }
     df1 <- tmp[,1:ncol(df)]
-  }else{df1 <- df}
+    } else { df1 <- df }
   
   pheatmap::pheatmap(
     df1, angle_col = "90", gaps_col = if(colclust == T){NULL}else{colGaps},
@@ -964,17 +1025,21 @@ myheat2 <- function(df, coldata, colclust = F, rowclust = T, Symbol = F,
 }
 
 # Here are your final heatmaps! 
-myheat2(hMtx, coldata, Symbol = T)
-myheat2(hMtx, coldata, Symbol = T, rowclust = F)
+#
+myheat2(hMtx, coldata, Symbol = T, title = paste("min.av. gene count >",minExp,"-"))
 myheat2(hMtx, coldata, Symbol = T, colclust = T, clustM = "average")
 
+x <- hMtx.all
+myheat2(x, coldata, Symbol = T, title = "Common set of DEGs")
+myheat2(x, coldata, Symbol = T, colclust = T, clustM = "average")
+
 # You can export them through:
-pdf(file = "Heatmaps_commonDEGs.pdf", width = 13, height = 19, 
+pdf(file = "Heatmaps_commonDEGs.pdf", width = 5, height = 11, 
     onefile = T, bg = "transparent")
 myheat2(hMtx, coldata, Symbol = T)
 myheat2(hMtx, coldata, Symbol = T, colclust = T)
 dev.off()
-
+##########################
 
 ## Session Information & save Rdata  ## ------------
 sink(paste0(home,"/DESeq2_SessionInfo.txt"))

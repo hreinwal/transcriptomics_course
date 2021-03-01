@@ -10,14 +10,14 @@
 
 ## Bioconductor source packages ##
 if (!requireNamespace("BiocManager", quietly = TRUE)){install.packages("BiocManager")}
-BioconPackage = c("DESeq2","IHW","ComplexHeatmap",
-                  "apeglm","qvalue",
-                  "EnhancedVolcano","pcaMethods",
+BioconPackage = c("DESeq2","IHW","ComplexHeatmap","ReactomePA",
+                  "apeglm","qvalue","pheatmap","org.Dr.eg.db",
+                  "EnhancedVolcano","pcaMethods","AnnotationDbi",
                   "clusterProfiler","biomaRt")
 BiocManager::install(BioconPackage, ask = F)
 
 ## CRAN source packages ##
-CranP = c("RColorBrewer","viridis","dplyr","ggplot2","vegan",
+CranP = c("RColorBrewer","viridis","dplyr","ggplot2","vegan","eulerr",
           "ggpubr","hexbin","Rtsne","devtools","tidyr","tidyverse")
 for(i in CranP) install.packages(i)
 rm(i)
