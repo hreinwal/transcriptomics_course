@@ -860,7 +860,7 @@ degFCcut.ls <- lapply(res.ls, function(X){
 
 
 # Let's plot the common set of DEGs after the LFcut filtering:
-myVenn(degFCcut.ls, title = "T3 - LFcut")
+myVenn(degFCcut.ls, title = paste(coldata$Substance[1],"- LFcut"))
 # This looks pretty good doesn't it? And in fact a number of 150 DEGs in the common set
 # is much more reasonable to plot in the final heatmap.
 
@@ -868,7 +868,6 @@ myVenn(degFCcut.ls, title = "T3 - LFcut")
 tmp = lapply(degFCcut.ls, row.names)
 names(tmp)
 str(tmp) # Now we have a nice tidy list object with all ENSEMBL IDs of the DEGs for each condition
-
 # To get the common overlap we simply run:
 int <- Reduce(intersect, tmp)
 
@@ -1029,7 +1028,7 @@ myheat2 <- function(df, coldata, colclust = F, rowclust = T, Symbol = F,
 myheat2(hMtx, coldata, Symbol = T, title = paste("min.av. gene count >",minExp,"-"))
 myheat2(hMtx, coldata, Symbol = T, colclust = T, clustM = "average")
 
-x <- hMtx.all
+x <- hMtx.all[,id.order]
 myheat2(x, coldata, Symbol = T, title = "Common set of DEGs")
 myheat2(x, coldata, Symbol = T, colclust = T, clustM = "average")
 

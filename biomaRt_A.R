@@ -312,6 +312,42 @@ ggbar(table(res$gene_biotype))
 # Supl. Q2: Match ortholog genes between species using ?getLDS()
 ?getLDS
 
+getORTHO <- function(ID, ID.type, FROM.mart, TO.mart,
+                     attrib.FROM = ID.type, attrib.TO = ID.type, ...) {
+  # parameters can be further extended with expressions from getLDS()
+  
+  #  attrib.FROM / attrib.TO
+  # if attributes not specified otherwise, they will be set to ID.type
+  # if you wish to extract other / multiple attributes specify them manually.
+  
+  # If input ID.type not specified -> check if ENSEMBL Gene or ENSEMBL Prot can be recognized
+  # if recognized, set the id type accordingly.
+  if(missing(ID.type)) {
+    message("\nNo ID.type / filter specified for getLDS(). Trying to extract ID.type from input IDs.")
+    if(grepl("ENS.+G", ID[1]) == T){#"ensembl_gene_id"
+      ID.type = "ensembl_gene_id"
+      message(paste("ID.type recognized and set to:\t", ID.type))
+    } else if (grepl("ENS.+P", ID[1]) == T) {#"ensembl_peptide_id"
+      ID.type = "ensembl_peptide_id"
+      message(paste("ID.type recognized and set to:\t", ID.type))
+    } else if (grepl("ENS.+T", ID[1]) == T) {#"ensembl_transcript_id"
+      ID.type = "ensembl_transcript_id"
+      message(paste("ID.type recognized and set to:\t", ID.type))
+    } else {
+      stop("Sorry :/ \nCould not recognize any ID.type pattern. \nPlease provide the correct ID.type for your input IDs.")
+    }
+  }
+  
+  # check available filters / ID.types via: listFilters(FROM.mart) %>% View()
+  getLDS(filters = ID.type, values = ID,
+         attributes  = attrib.FROM, mart = FROM.mart, 
+         attributesL = attrib.TO, martL = TO.mart,
+         ...)
+  
+}
 
+# i.e. human orthologues:
+human = useMart("ensembl", dataset = "hsapiens_gene_ensembl")
+getORTHO(ID, FROM.mart = rerio, TO.mart = human)
 
 ####  END OF SCRIPT  ####
