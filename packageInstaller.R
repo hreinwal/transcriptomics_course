@@ -13,7 +13,7 @@ if (!requireNamespace("BiocManager", quietly = TRUE)){install.packages("BiocMana
 BioconPackage = c("DESeq2","IHW","ComplexHeatmap","ReactomePA",
                   "apeglm","qvalue","pheatmap","org.Dr.eg.db",
                   "EnhancedVolcano","pcaMethods","AnnotationDbi",
-                  "clusterProfiler","biomaRt")
+                  "clusterProfiler","biomaRt","vsn")
 BiocManager::install(BioconPackage, ask = F)
 
 ## CRAN source packages ##
