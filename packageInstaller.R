@@ -17,8 +17,8 @@ BioconPackage = c("DESeq2","IHW","ComplexHeatmap","ReactomePA",
 BiocManager::install(BioconPackage, ask = F)
 
 ## CRAN source packages ##
-CranP = c("RColorBrewer","viridis","dplyr","ggplot2","vegan","eulerr",
-          "ggpubr","hexbin","Rtsne","devtools","tidyr","tidyverse")
+CranP = c("RColorBrewer","viridis","dplyr","ggplot2","gtools","vegan","eulerr",
+          "ggpubr","hexbin","Rtsne","devtools","tidyr","tidyverse","venn")
 for(i in CranP) install.packages(i)
 rm(i)
 
