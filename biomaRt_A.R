@@ -311,7 +311,6 @@ ggbar(table(res$gene_biotype))
 
 # Supl. Q2: Match ortholog genes between species using ?getLDS()
 ?getLDS
-
 getORTHO <- function(ID, ID.type, FROM.mart, TO.mart,
                      attrib.FROM = ID.type, attrib.TO = ID.type, ...) {
   # parameters can be further extended with expressions from getLDS()
