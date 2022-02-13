@@ -1045,6 +1045,5 @@ sink(paste0(home,"/DESeq2_SessionInfo.txt"))
 print(date())
 print(devtools::session_info())
 sink()
-
 save.image(paste0(home,"/DESeq2_pairwise.RData"))
 ###    END OF SCRIPT   ####
