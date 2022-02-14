@@ -12,7 +12,7 @@
 # and save the file in the same directory as the count files. 
 
 
-setwd("../") #set working directory (where *_geneCounts.txt are located)
+setwd("./") #set working directory where gene count files are located
 
 # Count Matrix generation
 message(" Importing GeneCount files ...")
@@ -25,9 +25,7 @@ names(count.files) <- ID
 # Sort gene lists (so they are all equally sorted)
 #head(count.files[[1]],10)
 #head(count.files[[1]][order(count.files[[1]]$V1),],10) #great!
-genesort = function(x){
-  x = x[order(x$V1),]
-}
+genesort = function(x){ x = x[order(x$V1),] }
 sorted = lapply(count.files, FUN = genesort)
 # Check if gene count order is identical throughout all files
 for (i in c(2:length(sorted))){
@@ -50,7 +48,7 @@ message(" GeneCount files imported. Saving CountMatrix.txt ...")
 # write.csv2(count.matrix, file = paste0("CountMatrix.csv"))
 # better to write to txt file as txt format is requiered for ArrayExpress upload
 #fna = paste0(gsub("_.*","",basename(getwd())),"_CountMatrix.txt") #file name
-out = "data_T3/T3_CountMatrix.txt"
+out = "CountMatrix.txt"
 write.table(count.matrix, file = out, sep = "\t", row.names = T, col.names = T, dec = ".")
 
 message(paste0("\n That's it!\n\n Count matrix saved in: ",out,"\n Well done! :)"))
