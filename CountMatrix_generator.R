@@ -51,5 +51,5 @@ message(" GeneCount files imported. Saving CountMatrix.txt ...")
 out = "CountMatrix.txt"
 write.table(count.matrix, file = out, sep = "\t", row.names = T, col.names = T, dec = ".")
 
-message(paste0("\n That's it!\n\n Count matrix saved in: ",out,"\n Well done! :)"))
+message(paste0("\n That's it!\n\n Count matrix saved in: ",getwd(),"\n Well done! :)"))
 ##### END OF SCRIPT #####
