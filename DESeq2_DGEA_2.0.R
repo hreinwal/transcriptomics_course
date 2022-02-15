@@ -141,7 +141,7 @@ dds <- DESeqDataSetFromMatrix(countData = countMtx,
 # first level of the factor (in our case condition) which we wish to compare for as reference level
 
 # To access i.e. the count matrix stored in dds you simply use counts()
-counts(dds) # prints the same object as countMtx! :) 
+counts(dds) # prints the same object as countMtx! :) <--- what would be a better way to display this?
 
 ## Count Matrix filtering ## ---------------------------------------
 # Before we start with statistical test for DGE analysis we need to remove low read counts
@@ -155,10 +155,11 @@ counts(dds) # prints the same object as countMtx! :)
 # Therefore it is a good idea to look at the quantile distribution to get an idea 
 # of a reasonable cutoff size.
 # computing rowSum for all rows: 
-tmp = apply(countMtx, 1, sum)
+tmp = apply(countMtx, 1, sum) # computes the sum of rows
 tmp1 = quantile(tmp, probs = seq(0, 1, 0.05)) # Here we look at the 5% quantile invervals from 0 to 100%
 tmp1
-# Q: In which quantile to we start to see counts when we look at the rowSums?
+# Q: Which quantile contains more than 0 counts?
+
 
 # We can simply plot the results with:
 par(mfrow=c(1,2))
