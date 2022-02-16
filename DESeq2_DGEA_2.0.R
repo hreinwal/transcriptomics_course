@@ -132,8 +132,8 @@ browseVignettes("DESeq2") # this will take you to the official DESeq2 vignette w
 # coding recommendations). Helped me a lot for my data analysis.
 
 ## Import data into a single DESeq2  object ## -------------------------------------------------
-dds <- DESeqDataSetFromMatrix(countData = countMtx, 
-                              colData = coldata, 
+dds <- DESeqDataSetFromMatrix(countData = countMtx, # <--- our count matrix
+                              colData = coldata,    # <--- our coldata file
                               design = ~ Tank + Condition) # Multifactor Level design to correct for batch effect
 
 # You successfully created now a DESeq2 object in which the combined information of 
@@ -143,8 +143,9 @@ dds <- DESeqDataSetFromMatrix(countData = countMtx,
 # To access i.e. the count matrix stored in dds you simply use counts()
 counts(dds) # prints the same object as countMtx! :) <--- what would be a better way to display this?
 
+
 ## Count Matrix filtering ## ---------------------------------------
-# Before we start with statistical test for DGE analysis we need to remove low read counts
+# Before we start with statistical test for DGE analysis we should remove low read counts
 # from our count matrix. But how do we determine a "good" threshold? 
 # The truth is ... there is NO standard procedure for that. A very common method is to 
 # take remove every gene which has a rowSum smaller than a certain value. (very common 10 - 20)
@@ -162,7 +163,7 @@ tmp1
 
 
 # We can simply plot the results with:
-par(mfrow=c(1,2))
+par(mfrow=c(1,2)) # creates a frame to show plots in with 1 row & 2 columns
 df <- data.frame(x=seq(0,1,.05)*100, y=tmp1)
 plot(df, xlab = "Quantile-%", ylab = "Total counts", main = "RowSums")
 
@@ -185,9 +186,8 @@ par(mfrow=c(1,1))
 
 # How the filtering affects the number of genes analyzed with DESeq2 
 # can be visualized via:
-cutOffPlot <- function(countMtx, cut) {
+cutOffPlot <- function(countMtx, cut = ncol(countMtx)) {
   n = ncol(countMtx)
-  if(missing(cut)){cut = n}
   if(n < 6) {stop("Number of count matrix columns < 6")}
   X = seq(n-6,n+50,1) 
   X[X == 0] <- 1
@@ -206,7 +206,11 @@ cutOffPlot <- function(countMtx, cut) {
   text(x = cut, y = df[cut,2], pos = 4, offset = 1.5,
        labels = paste("Cutoff:",cut,"=",df[cut,2],"genes"))
 }
+par(mfrow=c(3,1))
 cutOffPlot(countMtx)
+cutOffPlot(countMtx, 11)
+cutOffPlot(countMtx, 20)
+par(mfrow=c(1,1))
 
 # Filter count matrix - removing genes with none or low counts
 # selecting gene names / rownames from count matrix for which rowSum is > ncol +2
@@ -227,7 +231,8 @@ hist(log2(tmp+1), breaks = 30, main = "countMtx",
 hist(log2(tmp1 +1), breaks = 30, main = "filtered countMtx",
      ylim = c(0,2500), xlim = c(0,20),
      xlab ="log2(Row mean count +1)") #histogram of filtered counts
-cutOffPlot(countMtx)
+cutOffPlot(countMtx, 11)
+
 
 ## Running DESeq2 & first data QC ## ----------------------------------------------------------------
 # Now we can finally run DESeq2 :) Yay!
@@ -276,23 +281,21 @@ boxplot(log10(counts(dds, normalized=T)+1),
 
 # Normalized raw count matrix
 normMtx <- round(counts(dds, normalized = T),3) 
-#instead of df.counts
 
 # Variance stabilizing transformation on normalized count matrix
 vst.bl  <- assay(vst(dds, blind = T)) # blind=T; use for QC. Assesses data unbiased by Condition or Tank
 vst     <- assay(vst(dds, blind = F)) 
-# insted of df.rld
 
 # log2 transformed normalized count matrix
 ntd <- assay(normTransform(dds)) # Extract (n+1)log2 transformed mean read counts
-#insted of df.ntd
 
-# The from the objects we created above the vst.bl, vst are the most suitable for PCA, t-SNE, 
-# dissimilarity Mtx, heatmap etc ....
+
+# From all the matrix objects we created above,
+# vst.bl & vst are the most suitable for PCA, t-SNE, dissimilarity Mtx, heatmap etc ....
 
 # How these different data transformation methods affect your data you can 
 # check with a simple boxplot:
-par(mfrow=c(1,3))
+par(mfrow=c(1,4))
 boxplot(normMtx, notch = TRUE,
         las = 3, #rotating sample labels 90
         main = "Normalized read counts",
@@ -302,6 +305,11 @@ boxplot(ntd, notch = TRUE,
         las = 3, #rotating sample labels 90
         main = "log2 Transformation",
         ylab = "log2 (norm. read counts + 1)")
+
+boxplot(vst.bl, notch = TRUE,
+        las = 3, #rotating sample labels 90
+        main = "vst.bl Transformation",
+        ylab = "vst (norm. read counts)")
 
 boxplot(vst, notch = TRUE,
         las = 3, #rotating sample labels 90
@@ -337,13 +345,47 @@ corplot.1 <- function(df1) { ggplot(df1) +
   theme_bw() }
 
 # Log10 transformed mean counts
+df      <- ntd #INPUT 
+transf  <- " - [log2(counts+1)]"
+gg.list <- list() # empty list to store outputs in
+for (i in condition){
+  ID <- rownames(coldata)[which(coldata$Condition %in% i)]
+  p1 <- 1 #ID vector position
+  p2 <- 2 #ID vector position
+  df1 <- data.frame(x = df[,ID[p1]],
+                    y = df[,ID[p2]],
+                    d = densCols(df[,ID[p1]], df[,ID[p2]], colramp = colorRampPalette(rev(rainbow(10, end = 4/6))))
+  )
+  gg.list[[paste0(i,".",ID[p1],"vs",ID[p2])]] <- corplot.1(df1)
+  
+  p1 <- 1 #ID vector position
+  p2 <- 3 #ID vector position
+  df1 <- data.frame(x = df[,ID[p1]],
+                    y = df[,ID[p2]],
+                    d = densCols(df[,ID[p1]], df[,ID[p2]], colramp = colorRampPalette(rev(rainbow(10, end = 4/6))))
+  )
+  gg.list[[paste0(i,".",ID[p1],"vs",ID[p2])]] <- corplot.1(df1)
+  
+  p1 <- 2 #ID vector position
+  p2 <- 3 #ID vector position
+  df1 <- data.frame(x = df[,ID[p1]],
+                    y = df[,ID[p2]],
+                    d = densCols(df[,ID[p1]], df[,ID[p2]], colramp = colorRampPalette(rev(rainbow(10, end = 4/6))))
+  )
+  gg.list[[paste0(i,".",ID[p1],"vs",ID[p2])]] <- corplot.1(df1)
+}
 # Export to png
 png(filename = paste0(substance,"_Correlation_log10.png"),
     width = 7.33333*3, height = 7.6*length(condition), units = "cm", bg = "white",
     pointsize = 1, res = 450)
-df <- ntd #INPUT 
-transf <- " - [log2(counts+1)]"
-gg.list <- list()
+print(ggpubr::ggarrange(plotlist = gg.list, ncol = 3, nrow = (length(ls(gg.list))/3)))
+dev.off()
+
+
+# vst transformed mean counts
+df      <- vst #INPUT
+transf  <- " - [vst(counts)]"
+gg.list <- list() # empty list to store outputs in
 for (i in condition){
   ID <- rownames(coldata)[which(coldata$Condition %in% i)]
   p1 <- 1 #ID vector position
@@ -370,50 +412,16 @@ for (i in condition){
   )
   gg.list[[paste0(i,".",ID[p1],"vs",ID[p2])]] <- corplot.1(df1)
 }
-ggobj <- ls(gg.list)
-print(ggpubr::ggarrange(plotlist = gg.list, ncol = 3, nrow = (length(ggobj)/3)))
-dev.off()
-
-# vst transformed mean counts
+# Export to png
 png(filename = paste0(substance,"_Correlation_vst.png"),
     width = 7.33333*3, height = 7.6*length(condition), units = "cm", bg = "white",
     pointsize = 1, res = 450)
-df <- vst #INPUT
-transf <- " - [vst(counts)]"
-gg.list <- list()
-for (i in condition){
-  ID <- rownames(coldata)[which(coldata$Condition %in% i)]
-  p1 <- 1 #ID vector position
-  p2 <- 2 #ID vector position
-  df1 <- data.frame(x = df[,ID[p1]],
-                    y = df[,ID[p2]],
-                    d = densCols(df[,ID[p1]], df[,ID[p2]], colramp = colorRampPalette(rev(rainbow(10, end = 4/6))))
-  )
-  gg.list[[paste0(i,".",ID[p1],"vs",ID[p2])]] <- corplot.1(df1)
-  
-  p1 <- 1 #ID vector position
-  p2 <- 3 #ID vector position
-  df1 <- data.frame(x = df[,ID[p1]],
-                    y = df[,ID[p2]],
-                    d = densCols(df[,ID[p1]], df[,ID[p2]], colramp = colorRampPalette(rev(rainbow(10, end = 4/6))))
-  )
-  gg.list[[paste0(i,".",ID[p1],"vs",ID[p2])]] <- corplot.1(df1)
-  
-  p1 <- 2 #ID vector position
-  p2 <- 3 #ID vector position
-  df1 <- data.frame(x = df[,ID[p1]],
-                    y = df[,ID[p2]],
-                    d = densCols(df[,ID[p1]], df[,ID[p2]], colramp = colorRampPalette(rev(rainbow(10, end = 4/6))))
-  )
-  gg.list[[paste0(i,".",ID[p1],"vs",ID[p2])]] <- corplot.1(df1)
-}
-ggobj <- ls(gg.list)
-print(ggpubr::ggarrange(plotlist = gg.list, ncol = 3, nrow = (length(ggobj)/3)))
+print(ggpubr::ggarrange(plotlist = gg.list, ncol = 3, nrow = (length(ls(gg.list))/3)))
 dev.off()
 
 rm(df,ggobj,transf,gg.list,i,p1,p2,df1)
 
-# Q: The plots were exported. Have a look at them. Do they look similar? What are differences?
+# Q: The plots were exported. Have a look at them. Which samples are most similiar?
 ##########################
 
 
@@ -447,8 +455,8 @@ myPCA <- function(mtx, coldat, pcaM ="svd", top = 2000, title = "") {
     theme_bw() + theme(aspect.ratio = 1)
 }
 
-myPCA(vst, coldata, top = 2000)
-myPCA(vst.bl, coldata)
+myPCA(vst, coldata, title = "vst")
+myPCA(vst.bl, coldata, title = "vst.bl")
 # Q: Compare the two PCA plots. Which one is "better"? Why are they different?
 # Q: The "top" parameter refers to the topmost varying genes (largest variance among groups).
 #    What happens when you change this parameter? (i.e. try 100 500 10000 20000)
@@ -527,19 +535,19 @@ for(i in tmp) {
 }
 
 # You can simply access the object in the list via the $ extension:
-res.ls$lowexposure
+res.ls$LowExposure
 # with summary() you can get some quick stats
-summary(res.ls$lowexposure)
+summary(res.ls$LowExposure)
 # Q: How many genes are significantly upregulated? How many downregulated? How many outliers?
 # Check that for High and Low exposure condition.
 
 # To check the distribution of pvalues you can run:
 par(mfrow=c(1,2))
-hist(res.ls$lowexposure[["pvalue"]], main= "pval distr. - Low treatment",
+hist(res.ls$LowExposure[["pvalue"]], main= "pval distr. - Low treatment",
      col = "gray50", border = "gray50", ylab = "Frequency", xlab = "pvalue",
      breaks = 100)
 # and for high exposure treatment: 
-hist(res.ls$highexposure[["pvalue"]], main= "pval distr. - High treatment",
+hist(res.ls$HighExposure[["pvalue"]], main= "pval distr. - High treatment",
      col = "gray50", border = "gray50", ylab = "Frequency", xlab = "pvalue",
      breaks = 100)
 
@@ -581,7 +589,7 @@ rm(x,i)
 require(biomaRt)
 # biomaRt is a package designed for effectively searching ENSEMBL database for gene annotation.
 # Please check out the biomaRt.R script to learn how to use it. If you are planing to work
-# with large set genomic data file I highly recomend you to get familiar with this package
+# with large set genomic data file I highly recommend you to get familiar with this package
 # as it will make your life a whole lot easier. browse the vignette here: https://bioconductor.org/packages/release/bioc/vignettes/biomaRt/inst/doc/biomaRt.html
 
 # For now it is ok if you just run the next lines of code which will automatically annotate
@@ -593,7 +601,7 @@ idType <- "ensembl_gene_id"
 attr  <- c("ensembl_gene_id","external_gene_name","description","gene_biotype"#,"entrezgene_id"
            )
 GeneAnno <- getBM(attributes = attr, mart = rerio, uniqueRows = T,
-                filters = idType, values = id)
+                filters = idType, values = id, useCache = F )
 row.names(GeneAnno) <- GeneAnno$ensembl_gene_id
 
 # Now merge GeneAnno with DESeq2 result tables
@@ -762,8 +770,8 @@ nrow(deg.ls[[grep("[Hh]igh",names(deg.ls))]])
 
 # There is a really cool function in called ?intersect()
 # Q: What does intersect() do? What can be union() and setdiff() be used for?
-int <- intersect(row.names(deg.ls$lowexposure),
-                 row.names(deg.ls$highexposure))
+int <- intersect(row.names(deg.ls$LowExposure),
+                 row.names(deg.ls$HighExposure))
 # Q: Check the int object we just created. What does it contain?
 # Q: what is the length(int)?
 
@@ -793,8 +801,8 @@ myVenn(deg.ls, title = substance)
 # We can determine an arbitrary value, or we can compute one base on the LFcut distribution.
 # To inspect the distr. of log2FC values you can plot them with:
 par(mfrow=c(2,1))
-hist(res.ls$lowexposure$log2FoldChange, breaks = 150, xlim = c(-5,5))
-hist(res.ls$highexposure$log2FoldChange, breaks = 150, xlim = c(-5,5))
+hist(res.ls$LowExposure$log2FoldChange, breaks = 150, xlim = c(-5,5))
+hist(res.ls$HighExposure$log2FoldChange, breaks = 150, xlim = c(-5,5))
 # Q: What value are the log2FC values are centered around? 
 # Q: What kind of data distribution do we have here?
 # Q: How do the HE and LE log2FC values differ in their distribution?
@@ -802,9 +810,9 @@ hist(res.ls$highexposure$log2FoldChange, breaks = 150, xlim = c(-5,5))
 # I have experienced in the past that using the upper 90% quantile (= top 10%) of genes with the absolute largest log2FC values)
 # makes a great effect size cut off which scales with the "wideness" / variance of your log2FC distribution.
 # We already know how to compute the quantile values. To get the top 90% we run:
-LFcut.LE <- quantile(abs(res.ls$lowexposure$log2FoldChange), 0.9)
+LFcut.LE <- quantile(abs(res.ls$LowExposure$log2FoldChange), 0.9)
 LFcut.LE
-LFcut.HE <- quantile(abs(res.ls$highexposure$log2FoldChange), 0.9)
+LFcut.HE <- quantile(abs(res.ls$HighExposure$log2FoldChange), 0.9)
 # Q: why are we using the abs() expression here? 
 # The LFcut.HE is actually quite large (> 1). To avoid the removal of precious datapoints
 # we will manually set this value to 1 for now. But in fact there is NO textbook value. 
