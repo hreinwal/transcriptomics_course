@@ -566,7 +566,7 @@ par(mfrow=c(1,1))
 # allows a powerful transformation of the log2FC values in our deseq2 result table.
 # As stated in the name, this transformation performs a shrinking of the Log2FC values.
 # How much the Log2FC values are shrinked depends on how statistically reliable the value is.
-# Hereby apeglm considers the overall baseMean of a particualr log2FC and its SD.
+# Hereby apeglm considers the overall baseMean of a particular log2FC and its SD.
 # Large SD values will be more penalized compared to log2FC values with low SD.
 # Same goes for genes with a low baseMean count. Hence low abundant genes with a large
 # SD will be heavily penalized. This means their log2FC value will be heavily shrinked!
@@ -595,7 +595,7 @@ require(biomaRt)
 # For now it is ok if you just run the next lines of code which will automatically annotate
 # your DESeq2 result tables.
 
-rerio  <- useMart("ENSEMBL_MART_ENSEMBL", dataset = 'drerio_gene_ensembl', host = "https://www.ensembl.org")
+rerio  <- biomaRt::useMart("ENSEMBL_MART_ENSEMBL", dataset = 'drerio_gene_ensembl', host = "https://www.ensembl.org")
 id     <- rownames(res.ls[[1]])
 idType <- "ensembl_gene_id"
 attr  <- c("ensembl_gene_id","external_gene_name","description","gene_biotype"#,"entrezgene_id"
@@ -703,13 +703,14 @@ VulcFun <- function(res, LFcut, topgenes = 10, title = "", Symbol = F, shrink = 
 gg <- list() #empty list to store our objects to plot in with
 for(i in names(res.ls)) {
   res = res.ls[[i]] # picking the i result table
-  gg[[paste0("MA.",i)]] <- MAfun(res, Symbol = T, title = i, topgenes = 6)
-  gg[[paste0("VO.",i)]] <- VulcFun(res, Symbol = T, title = i, topgenes = 6)
+  gg[[paste0("MA.",i)]] <- MAfun(res, Symbol = T, title = i, topgenes = 10)
+  gg[[paste0("VO.",i)]] <- VulcFun(res, Symbol = T, title = i, topgenes = 10)
 }
 # Now you can plot each plot of the gg list object individually. i.e:
 names(gg)
 gg[[1]]
 gg[[2]]
+gg$MA.HighExposure
 
 # Or you can plot all plots in one panel:
 ggpubr::ggarrange(plotlist = gg, ncol = 2, nrow = length(res.ls))
@@ -717,8 +718,8 @@ ggpubr::ggarrange(plotlist = gg, ncol = 2, nrow = length(res.ls))
 # It is the best to export this nice graph into a png.
 # Remember pdf is better but in this case the multiple layers in the pdf might create 
 # some problems for so many data points!
-png(paste0(substance,"_MA_Volcano.png"),units = "cm", bg = "white", res = 500,
-    width = 7.33333*3, height = 7.6*length(condition),pointsize = 1)
+png(paste0(substance,"_MA_Volcano.png"),units = "cm", bg = "white", res = 300,
+    width = 7.33333*3, height = 7.6*length(condition), pointsize = 1)
 ggpubr::ggarrange(plotlist = gg, ncol = 2, nrow = length(names(res.ls)))
 dev.off()
 # Now check your DESeq2 folder. The plot should be in there now.
@@ -748,6 +749,7 @@ rm(gg,i,res,LFcut) # cleanup environment a little bit
 
 ##############     NEW LINES OF CODE FROM HERE     ##################
 
+
 ### Venn plot ### --------------------------------------------------------------
 # Based on what we have seen so far our data looks pretty good and reliable.
 # Let's check  the numbers of differential expressed genes (DEGs) in the high 
@@ -764,9 +766,9 @@ nrow(deg.ls[[grep("[Hh]igh",names(deg.ls))]])
 # Q: Does this number make sense to be visualized in a heatmap? 
 #    Or do you think it makes sense to visualize anything with ~ 5000 rows? 
 
-# So in our case we might be only interested in genes that are found differentially
+# So in our case we might be only interested in genes that are found deferentially
 # regulated in both (HE & LE) conditions. 
-# Q: Why would we be more interested in the common set of genes? 
+# Q: Why would we be more interested in the common set of genes?
 
 # There is a really cool function in called ?intersect()
 # Q: What does intersect() do? What can be union() and setdiff() be used for?
@@ -810,9 +812,9 @@ hist(res.ls$HighExposure$log2FoldChange, breaks = 150, xlim = c(-5,5))
 # I have experienced in the past that using the upper 90% quantile (= top 10%) of genes with the absolute largest log2FC values)
 # makes a great effect size cut off which scales with the "wideness" / variance of your log2FC distribution.
 # We already know how to compute the quantile values. To get the top 90% we run:
-LFcut.LE <- quantile(abs(res.ls$LowExposure$log2FoldChange), 0.9)
+LFcut.LE <- quantile(abs(res.ls$LowExposure$log2FoldChange), .75)
 LFcut.LE
-LFcut.HE <- quantile(abs(res.ls$HighExposure$log2FoldChange), 0.9)
+LFcut.HE <- quantile(abs(res.ls$HighExposure$log2FoldChange), .75)
 # Q: why are we using the abs() expression here? 
 # The LFcut.HE is actually quite large (> 1). To avoid the removal of precious datapoints
 # we will manually set this value to 1 for now. But in fact there is NO textbook value. 
@@ -820,7 +822,7 @@ LFcut.HE = 1
 
 # To filter out DEGs above or below the computed LFcut threshold run:
 degFCcut.ls <- lapply(res.ls, function(X){
-  lfcut = quantile(abs(X$log2FoldChange), 0.9)
+  lfcut = quantile(abs(X$log2FoldChange), .9)
   if(lfcut > 1){lfcut = 1} # in case lfcut greater 1, set to 1
   message(paste("Log2FC cut off:\t\t",round(lfcut,2)))
   x = subset(X, padj <= p)
@@ -830,11 +832,11 @@ degFCcut.ls <- lapply(res.ls, function(X){
 
 
 # Let's plot the common set of DEGs after the LFcut filtering:
-myVenn(degFCcut.ls, title = paste(coldata$Substance[1],"- LFcut"))
+myVenn(degFCcut.ls, title = paste("top10% ",coldata$Substance[1],"- LFcut"))
 # This looks pretty good doesn't it? And in fact a number of 150 DEGs in the common set
 # is much more reasonable to plot in the final heatmap.
 
-# Extract these 150 gene IDs with:
+# Extract these 181 gene IDs with:
 tmp = lapply(degFCcut.ls, row.names)
 names(tmp)
 str(tmp) # Now we have a nice tidy list object with all ENSEMBL IDs of the DEGs for each condition
@@ -850,7 +852,7 @@ abline(h=500, lwd=1.5, lty=2, col = "blue")
 # The two dashed lines indicate an arbitrary threshold we could set at i.e. 500 (blue)
 # or 250 (red). So let us subset our final DEG selection one last time for genes that have
 # a mean expression value of at least 100.
-common <- names(tmp) # the 150 DEGs of the common set
+common <- names(tmp) # the 181 DEGs of the common set
 
 minExp <- 200 # minimum baseMean gene count; You can play around with this parameter.
 select <- names(tmp[which(tmp > minExp)]) # Final selection with mean expression cut off
@@ -870,17 +872,19 @@ select
 ?pheatmap
 
 # very simple heatmap - only counts
-pheatmap(countMtx[select,])
+pheatmap(normMtx[select,])
+pheatmap(log10(normMtx[select,]))
 
 # now with annotation and gene symbol 
 anno = subset(res.ls[[1]][select,], select=external_gene_name)
-tmp = countMtx
+tmp = normMtx
 tmp = merge(tmp,anno, by=0)
 row.names(tmp) <- tmp$external_gene_name
 tmp = subset(tmp, select = grep("R[1-9]",colnames(tmp)))
 pheatmap(tmp, annotation_col = coldata[,c("Condition","Tank")])
+pheatmap(log10(tmp), annotation_col = coldata[,c("Condition","Tank")])
 # Well this looks sort of like a heatmap but probably not exactly what you expected.
-# Q: What do the colors correspond here? 
+# Q: What do the colors in the heatmap correspond to here? 
 
 # Plotting the vst transformed mean counts 
 pheatmap(vst[select,], cluster_cols = T,
